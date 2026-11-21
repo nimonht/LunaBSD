@@ -11,6 +11,11 @@
 # MEDIA=usb attaches the ISO as a USB stick (the hybrid GPT and its EFI
 # partition, as when written with Rufus or dd) instead of a DVD.
 #
+# PLASMA=fallback (UEFI) makes the live system go the KDE Plasma way although
+# QEMU has no graphics driver (luna.test_plasma): the live user is logged in
+# on the first console, Plasma is tried and fails, and the installer must
+# take over by itself (iso/live/luna-plasma, luna_live fallback).
+#
 # Needs qemu-system-x86_64, OVMF (for uefi), python3. Works without KVM
 # (slow: several minutes). Result: tests/vm/live-work/serial.log and
 # screen.png; exit status 0 when every check passed.
@@ -39,20 +44,24 @@ checks="printf 'CHECKS-%s\\n' BEGIN; printf 'session=%s\\n' \"\$(cat /var/run/lu
 printf 'reason=%s\\n' \"\$(cat /var/run/luna-live/reason)\"; mount -p | head -3; \
 zpool list -H -o name,size,alloc lunalive; . /etc/os-release; echo \"\$PRETTY_NAME\"; \
 sleep 150; pgrep -lf 'Xorg|sddm|luna-installer|openbox' | cut -c1-90; \
+printf 'after=%s\\n' \"\$(cat /var/run/luna-live/session)\"; printf 'reason2=%s\\n' \"\$(cat /var/run/luna-live/reason)\"; \
+grep -E -v 'dbus-daemon|qt.qpa.wayland' /var/run/luna-live/plasma.log 2>/dev/null | sed 's/^/plasma: /' | head -150; grep '^ttyv0' /etc/ttys; \
 ls /usr/local/etc/sddm.conf.d /usr/local/etc/X11/xorg.conf.d; \
 grep -h '(EE)' /var/log/Xorg.0.log 2>/dev/null | head -5; \
 glabel status -s | awk '\$1 ~ /^iso9660\// { print \"media=\" \$3 }'; \
 printf 'offered=%s\\n' \"\$(su -m luna -c 'doas /bin/sh /usr/local/share/freebsd-setup/install.sh --probe' | awk -F'\\t' '\$1 == \"disk\" { printf \"%s \", \$2 }')\"; \
 printf 'CHECKS-%s\\n' DONE"
-python3 - "$W/steps.json" "$FW" "$checks" <<'PY'
+python3 - "$W/steps.json" "$FW" "$checks" "${PLASMA:-}" <<'PY'
 import json, sys
-out, fw, checks = sys.argv[1:4]
+out, fw, checks, plasma = sys.argv[1:5]
 steps = []
 if fw == "uefi":
     # the boot menu is on the serial line too (OVMF); send the kernel there
     steps += [[r"Escape to loader prompt", "3", 900],
-              [r"OK", 'set console="comconsole,efi"\r', 300],
-              [r"OK", "boot\r", 60]]
+              [r"OK", 'set console="comconsole,efi"\r', 300]]
+    if plasma == "fallback":
+        steps += [[r"OK", "set luna.test_plasma=1\r", 60]]
+    steps += [[r"OK", "boot\r", 60]]
 steps += [[r"login:", "root\r", 5400],
           [r"#\s*$", checks + "\r", 300],
           [r"CHECKS-DONE", "", 900]]
@@ -96,7 +105,17 @@ log=$(tr -d '\r' < "$W/serial.log" | sed 's/\x1b\[[0-9;?]*[A-Za-z]//g')
 fail=0
 check() { if printf '%s\n' "$log" | grep -a -q -E "$2"; then echo "ok:   $1"; else echo "FAIL: $1"; fail=1; fi; }
 check "rerooted into the system copied into memory" '^lunalive[[:space:]]+/[[:space:]]+zfs'
-check "installer session chosen (no KMS in QEMU)" '^session=installer'
+if [ "${PLASMA:-}" = fallback ]; then
+	check "the live user was logged in on the first console, Plasma tried" '^plasma: == .*starting KDE Plasma .* on /dev/ttyv0 as luna'
+	check "Plasma ran inside a ConsoleKit2 session" '^plasma: == ConsoleKit2 sessions'
+	check "Plasma itself started (startplasma-wayland)" '^plasma: startplasma-wayland: Shutting down'
+	check "Plasma's messages are kept" '^plasma: == .*Plasma ended'
+	check "Plasma failed (no graphics driver): the installer took over" '^after=installer'
+	check "the installer says why" '^reason2=KDE Plasma did not start'
+	check "the first console has its normal login back" '^ttyv0[[:space:]]+"/usr/libexec/getty Pc"'
+else
+	check "installer session chosen (no KMS in QEMU)" '^session=installer'
+fi
 check "os-release names LunaBSD" '^LunaBSD [0-9.]+ \(FreeBSD 15'
 check "X server running" 'Xorg'
 check "installer running" 'luna-installer'

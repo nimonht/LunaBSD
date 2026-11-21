@@ -1,0 +1,44 @@
+#!/bin/sh
+# Written by FreeBSD-setup: start KDE Plasma (Wayland) for the LunaBSD live
+# user. Run from ~/.profile on the first console, where luna_live has the
+# user logged in automatically (iso/live/luna_live says why not from SDDM).
+#
+# The command is the one in Plasma's own session file (wayland-sessions/
+# plasma.desktop, as FreeBSD packages it): a D-Bus session, a ConsoleKit2
+# session for this console, then Plasma. Its messages go to
+# /var/run/luna-live/plasma.log. If Plasma ends within a minute it did not
+# come up: the live system switches to the installer (luna_live fallback).
+#
+# It runs itself inside the ConsoleKit2 session (LUNA_PLASMA_SESSION set:
+# ck-launch-session takes every argument starting with "-" as its own
+# option, even after the program's name, so none is passed): there it
+# notes what ConsoleKit2 says about the session, then execs Plasma.
+STATE=/var/run/luna-live
+LOG=$STATE/plasma.log
+
+if [ -n "${LUNA_PLASMA_SESSION:-}" ]; then
+	unset LUNA_PLASMA_SESSION
+	# KWin gets the graphics card only when this session is "active".
+	echo "== ConsoleKit2 sessions (this one: ${XDG_SESSION_ID:-?}${XDG_SESSION_COOKIE:+, cookie set}):"
+	ck-list-sessions 2>&1 | grep -E '^[^[:space:]]|unix-user|active|display-device|vtnr|seat'
+	exec /usr/local/bin/startplasma-wayland
+fi
+
+{
+	echo "== $(date): starting KDE Plasma (Wayland) on $(tty) as $(id -un)"
+	env | grep -E '^(XDG_|DBUS|WAYLAND|DISPLAY|LANG)' | sort
+	ls -l /dev/dri 2>&1
+} >> "$LOG" 2>&1
+# KWin's own messages about the session and the graphics card (it says
+# little by default).
+export QT_LOGGING_RULES="${QT_LOGGING_RULES:-kwin_core.debug=true;kwin_wayland_drm.debug=true}"
+_start=$(date +%s)
+LUNA_PLASMA_SESSION=1 /usr/local/lib/libexec/plasma-dbus-run-session-if-needed \
+	/usr/local/bin/ck-launch-session /usr/local/libexec/luna-plasma >> "$LOG" 2>&1
+_rc=$?
+_ran=$(($(date +%s) - _start))
+echo "== $(date): Plasma ended (exit $_rc) after $_ran s" >> "$LOG"
+if [ "$_ran" -lt 60 ]; then
+	echo "KDE Plasma could not start; the installer starts instead (details: $LOG)"
+	/usr/local/bin/doas /usr/sbin/service luna_live fallback
+fi

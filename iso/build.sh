@@ -272,6 +272,13 @@ step_configure() {
 	# The live session: hardware -> graphics driver -> desktop or installer.
 	install -m 755 "$_live/luna_live" "$ROOT/usr/local/etc/rc.d/luna_live"
 	install -m 755 "$_live/luna-installer-session" "$ROOT/usr/local/libexec/luna-installer-session"
+	install -m 755 "$_live/luna-plasma" "$ROOT/usr/local/libexec/luna-plasma"
+	# The first console logs the live user in when Plasma is to start
+	# (luna_live switches ttyv0 to this entry; ~/.profile then starts it).
+	if ! grep -q '^luna.live' "$ROOT/etc/gettytab"; then
+		printf '\n# LunaBSD live: the live user on the first console (iso/live/luna_live).\nluna.live:\\\n\t:al=%s:tc=Pc:\n' \
+			"$LIVE_USER" >> "$ROOT/etc/gettytab"
+	fi
 	mkdir -p "$ROOT/usr/local/share/xsessions" "$ROOT/usr/local/etc/sddm.conf.d" "$ROOT/usr/local/etc/xdg/autostart"
 	install -m 644 "$_live/luna-installer.session.desktop" "$ROOT/usr/local/share/xsessions/luna-installer.desktop"
 	install -m 644 "$_live/sddm-live.conf" "$ROOT/usr/local/etc/sddm.conf.d/10-luna-live.conf"
@@ -317,6 +324,14 @@ step_configure() {
 	chroot "$ROOT" pw usermod root -w none
 	_home="$ROOT/home/$LIVE_USER"
 	(cd "$_live/home" && tar -cf - .) | tar -xf - -C "$_home"
+	cat >> "$_home/.profile" <<'PROFILE'
+
+# Written by FreeBSD-setup: on the LunaBSD live system the first console
+# starts KDE Plasma when luna_live chose it (iso/live/luna_live).
+if [ "$(tty)" = /dev/ttyv0 ] && [ "$(cat /var/run/luna-live/session 2>/dev/null)" = plasma ]; then
+	exec /usr/local/libexec/luna-plasma
+fi
+PROFILE
 	mkdir -p "$_home/Desktop"
 	install -m 755 "$REPO_DIR/installer/luna-installer.desktop" "$_home/Desktop/install-$DISTRO_ID.desktop"
 	chroot "$ROOT" chown -R "$LIVE_USER:$LIVE_USER" "/home/$LIVE_USER"

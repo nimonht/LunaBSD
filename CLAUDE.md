@@ -99,7 +99,7 @@ shellcheck -s sh -S warning -e SC1090,SC1091,SC2034,SC2154,SC3043 \
   setup.sh install.sh bootstrap.sh lib/*.sh stages/*.sh files/bin/* \
   caelestia/build.sh files/rc.d/* tests/*.sh tests/vm/*.sh files/shell/fbs-terminal-greeting \
   iso/*.sh iso/ramdisk/init.sh iso/ramdisk/rc iso/live/luna_live iso/live/luna-installer-session \
-  iso/live/rc.local installer/luna-wifi lib/live.sh
+  iso/live/rc.local iso/live/luna-plasma installer/luna-wifi lib/live.sh
 shellcheck -s bash -S warning files/shell/bash.bashrc
 sh tests/vm/run-iso-test.sh FreeBSD-15.1-RELEASE-amd64-disc1.iso tests/install-erase-kde.conf
 sh tests/vm/run-secureboot-test.sh iso/out/lunabsd-*.iso setup  # OVMF Setup Mode: enroll, signed starts, unsigned refused
@@ -163,10 +163,17 @@ fetch -qo- https://raw.githubusercontent.com/nimonht/LunaBSD/BRANCH/bootstrap.sh
   by default); any change then stops Limine from starting. `limine_locked`
   (lib/common.sh) checks this; test with
   `DISK_SETUP=dualboot LIMINE_ENROLL=yes ... tests/install-alongside-limine.conf`.
+- KDE Plasma does not start from SDDM on FreeBSD (seen on a real laptop):
+  KWin gets the graphics card only through ConsoleKit2 (`kwin_core: Could
+  not determine the active graphical session` otherwise), and ConsoleKit2
+  gives devices only to the session of the console on screen; SDDM's
+  sessions have no console. Installed KDE uses ly (a session on the console
+  it shows); the live stick logs the user in on ttyv0 and starts Plasma
+  from `~/.profile` (`iso/live/luna-plasma`, falling back to the installer).
 - KDE Plasma in FreeBSD packages is Wayland-only (6.8 on "latest", 6.7.5 on
   "quarterly", which KDE-only installs from the text installer use; the
-  graphical installer asks, "latest" by default). The SDDM login screen
-  still runs on X11.
+  graphical installer asks, "latest" by default). SDDM (X11) is still used
+  for the live stick's installer-only session.
 - Hyprland + Caelestia need the `latest` package branch; KDE alone uses
   `quarterly`. Kernel modules come from the `FreeBSD-ports-kmods` repository
   matching the minor release.

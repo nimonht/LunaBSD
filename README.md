@@ -357,8 +357,9 @@ replaced); the login screen; who may run admin commands
 (`/usr/local/etc/doas.conf` when you have none,
 `/usr/local/etc/sudoers.d/00-freebsd-setup`, and polkit rules so that you can
 mount drives, shut down, set the time and switch power profiles without a
-password); the login screen's PAM file `/usr/local/etc/pam.d/sddm`, while it
-is still the package's own (so the wallet opens with your login password);
+password); with SDDM (not the default), its PAM file
+`/usr/local/etc/pam.d/sddm` while it is still the package's own (so the
+wallet opens with your login password);
 `/etc/fstab` (`/proc`, `/dev/fd`, and `/dev/shm` for Steam);
 `/etc/nsswitch.conf` (network printers); `/etc/ttys` and `/etc/gettytab`
 (the ly login screen); your groups (wheel, operator, video, webcamd, games, cups) and the

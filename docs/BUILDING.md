@@ -115,8 +115,16 @@ downloads, even `pkg install`), and the stick can be removed.
    early: it reads the hardware with `lib/hw.sh` (the installer's own
    detection), loads the graphics driver (`i915kms`, `amdgpu`/`radeonkms`,
    or NVIDIA's `nvidia-drm` for the current driver branch), and waits for a
-   display. With a display, SDDM logs the live user in to KDE Plasma
-   (Wayland). Without one, SDDM starts the *LunaBSD Installer* session:
+   display. With a display, the live user is logged in on the first
+   console and `~/.profile` starts KDE Plasma (Wayland) there
+   ([`iso/live/luna-plasma`](../iso/live/luna-plasma)). Not through SDDM:
+   KWin gets the graphics card from ConsoleKit2 (FreeBSD has no logind),
+   which gives devices only to the session of the console on screen, and a
+   session SDDM starts has none, so Plasma stopped at once on a real laptop.
+   If Plasma does not come up within a minute, the installer session starts
+   instead (`luna_live fallback`; Plasma's messages in
+   `/var/run/luna-live/plasma.log`). Without a display, SDDM starts the
+   *LunaBSD Installer* session:
    X11 on the firmware framebuffer (`scfb` on UEFI, `vesa` on BIOS), a light
    window manager and the installer full screen. The decision and its reason
    are in `/var/run/luna-live/`; the installer shows the reason.
