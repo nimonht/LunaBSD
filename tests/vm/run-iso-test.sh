@@ -41,7 +41,7 @@ ACCEL=tcg,thread=multi CPU=Westmere
 [ -w /dev/kvm ] && ACCEL=kvm CPU=max
 
 rm -rf "$W"; mkdir -p "$W/cfg/repo"
-(cd "$REPO" && tar --exclude=.git --exclude=tests/vm/work -cf - .) | tar -xf - -C "$W/cfg/repo"
+(cd "$REPO" && tar --exclude=.git --exclude=tests/vm/work --exclude='tests/vm/*-work*' --exclude=iso/work --exclude=iso/out --exclude=iso/vm -cf - .) | tar -xf - -C "$W/cfg/repo"
 # Inside the test VM the target disk is the first virtio disk.
 sed 's/^INSTALL_DISK=.*/INSTALL_DISK=vtbd0/' "$CONF" > "$W/cfg/answers.conf"
 CA_CMD=""

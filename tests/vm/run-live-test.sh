@@ -100,6 +100,11 @@ PY
 python3 -c "
 from PIL import Image; import sys
 Image.open('$W/screen.ppm').save('$W/screen.png')" 2>/dev/null || cp "$W/screen.ppm" "$W/screen.png"
+if [ "$FW" != uefi ]; then
+	# no serial login on BIOS boots: there is no log to check, only the picture
+	echo "screen: $W/screen.png (BIOS: look at it, nothing is checked)"
+	exit 0
+fi
 [ "$rc" -eq 0 ] || { echo "FAIL: the live system did not get to the checks (see $W/serial.log)"; exit 1; }
 log=$(tr -d '\r' < "$W/serial.log" | sed 's/\x1b\[[0-9;?]*[A-Za-z]//g')
 fail=0
@@ -117,8 +122,8 @@ else
 	check "installer session chosen (no KMS in QEMU)" '^session=installer'
 fi
 check "os-release names LunaBSD" '^LunaBSD [0-9.]+ \(FreeBSD 15'
-check "X server running" 'Xorg'
-check "installer running" 'luna-installer'
+check "X server running" '^[0-9]+ .*Xorg'
+check "installer running" '^[0-9]+ .*luna-installer'
 # The installer must never offer the stick it runs from (install.sh's
 # disk_candidates; after the reroot nothing on the stick is mounted).
 media=$(printf '%s\n' "$log" | sed -n 's/^media=\([a-z]*[0-9]*\).*/\1/p' | head -1)

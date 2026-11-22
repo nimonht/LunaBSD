@@ -90,10 +90,10 @@ pool_mounts_off() {
 }
 pool_close() {
 	pool_mounts_off
-	zpool list "$BPOOL" >/dev/null 2>&1 && zpool export "$BPOOL"
-	zpool list "$IPOOL" >/dev/null 2>&1 && zpool destroy -f "$IPOOL"
+	zpool list "$BPOOL" >/dev/null 2>&1 && { zpool export "$BPOOL" || true; }
+	zpool list "$IPOOL" >/dev/null 2>&1 && { zpool destroy -f "$IPOOL" || true; }
 	for _m in $(mdconfig -l -v 2>/dev/null | awk -v a="$WORK/root.img" -v b="$WORK/image.img" '$4 == a || $4 == b { print $1 }'); do
-		mdconfig -d -u "$_m"
+		mdconfig -d -u "$_m" || true
 	done
 	rm -f "$WORK/image.img"
 	return 0
@@ -249,7 +249,8 @@ step_configure() {
 	rm -rf "${ROOT:?}$_share"
 	mkdir -p "$ROOT$_share" "$ROOT/usr/local/sbin"
 	(cd "$REPO_DIR" && tar -cf - --exclude ./.git --exclude ./iso/work --exclude ./iso/out \
-		--exclude ./tests/vm/work --exclude '__pycache__' .) | tar -xf - -C "$ROOT$_share"
+		--exclude ./iso/vm --exclude ./tests/vm/work --exclude './tests/vm/live-work*' \
+		--exclude './tests/vm/sb-work*' --exclude '__pycache__' .) | tar -xf - -C "$ROOT$_share"
 	ln -sf "$_share/setup.sh" "$ROOT/usr/local/sbin/freebsd-setup"
 	# Secure Boot: the installer puts shim on the new system's EFI partition.
 	rm -rf "${ROOT:?}$SB_SHARE"

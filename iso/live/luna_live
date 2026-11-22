@@ -156,8 +156,14 @@ Session=luna-installer.desktop
 Relogin=false
 CONF
 	sed -i '' -E 's|^ttyv0([[:space:]]+)"/usr/libexec/getty luna.live"|ttyv0\1"/usr/libexec/getty Pc"|' /etc/ttys
+	# SDDM in a session of its own (daemon -f: setsid). This command runs in
+	# the first console's session (luna-plasma's), which ends next; whatever
+	# it starts there gets the hangup, and SDDM never came up (seen in QEMU:
+	# no Xorg, no installer after the fallback). Then init takes the
+	# console's normal login back (it ends that session on the HUP).
+	daemon -f /usr/sbin/service sddm start
+	sleep 2
 	kill -HUP 1
-	service sddm start
 }
 
 load_rc_config $name

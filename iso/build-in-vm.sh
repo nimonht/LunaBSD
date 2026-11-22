@@ -92,7 +92,7 @@ done
 log "Copying the repository into the VM"
 $SSH 'rm -rf /root/luna && mkdir -p /root/luna'
 (cd "$REPO_DIR" && tar -cf - --exclude ./.git --exclude ./iso/work --exclude ./iso/out --exclude ./iso/vm \
-	--exclude ./tests/vm/work --exclude ./tests/vm/live-work .) | $SSH 'tar -xf - -C /root/luna'
+	--exclude ./tests/vm/work --exclude './tests/vm/live-work*' --exclude './tests/vm/sb-work*' .) | $SSH 'tar -xf - -C /root/luna'
 if [ -n "${EXTRA_CA:-}" ]; then
 	$SSH 'cat > /root/build-ca.pem' < "$EXTRA_CA"
 fi
@@ -110,6 +110,8 @@ if [ -n "${SB_KEY:-}" ] && [ -n "${SB_CERT:-}" ]; then
 	$SSH 'umask 077 && mkdir -p /root/sb && cat > /root/sb/key.pem' < "$SB_KEY"
 	$SSH 'cat > /root/sb/cert.pem' < "$SB_CERT"
 	envs="$envs SB_KEY=/root/sb/key.pem SB_CERT=/root/sb/cert.pem"
+	# (also after a failed build: the VM's disk is reused)
+	trap '$SSH "rm -rf /root/sb" 2>/dev/null || true' EXIT
 fi
 [ -n "${BUILD_PROXY:-}" ] && envs="$envs HTTPS_PROXY='$BUILD_PROXY' https_proxy='$BUILD_PROXY'"
 
