@@ -6,8 +6,9 @@ import QtQuick.Layouts
 LPage {
     title: app.installOk ? "Installed" : "Not finished"
     subtitle: app.installOk ? app.distroName + " is installed. Remove the USB stick, then restart the computer."
-                            : "Nothing is lost: the installer removed what it had started on the disk. The details below say why it stopped; "
-                              + "check the internet connection and try again."
+                            : (app.installMode === "erase" ? "The installer stopped after the disk may already have been erased, as you chose. "
+                                                              : "Nothing is lost: the installer removed what it had started on the disk. ")
+                              + "The details below say why it stopped; check the internet connection and try again."
     code: app.installOk ? "COMPLETE" : "STOPPED"
     scroll: false
     ready: false

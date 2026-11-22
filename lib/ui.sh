@@ -109,7 +109,9 @@ ui_check() {
 	_title=$1 _txt=$2; shift 2
 	case "$UI_MODE" in
 	dialog)
-		_bd --title "$_title" --separate-output --checklist "$_txt" 0 0 0 "$@" | tr '\n' ' ' | sed 's/ $//' ;;
+		# (not piped: Cancel must still return non-zero)
+		_o=$(_bd --title "$_title" --separate-output --checklist "$_txt" 0 0 0 "$@") || return 1
+		printf '%s' "$_o" | tr '\n' ' ' | sed 's/ $//' ;;
 	text)
 		_text_wrap "$_title" "$_txt"
 		_sel=""

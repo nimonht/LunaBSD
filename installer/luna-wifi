@@ -26,7 +26,7 @@ wlan_if() {
 	if [ -z "$_w" ]; then
 		_dev=$(sysctl -n net.wlan.devices 2>/dev/null | awk '{ print $1 }')
 		[ -n "$_dev" ] || return 1
-		[ -f "$CONF" ] || printf 'ctrl_interface=/var/run/wpa_supplicant\nctrl_interface_group=wheel\nupdate_config=1\n' > "$CONF"
+		[ -f "$CONF" ] || (umask 077; printf 'ctrl_interface=/var/run/wpa_supplicant\nctrl_interface_group=wheel\nupdate_config=1\n' > "$CONF")
 		sysrc "wlans_$_dev=wlan0" "ifconfig_wlan0=WPA DHCP" > /dev/null
 		service netif start wlan0 > /dev/null 2>&1 || true
 		_w=wlan0
