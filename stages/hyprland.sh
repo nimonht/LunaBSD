@@ -18,7 +18,11 @@ pkg_install nerd-fonts-jetbrainsmono nerd-fonts-caskaydiacove material-icons-ttf
 pkg_try rubik
 
 say "shell tools"
-pkg_install fish starship eza zoxide direnv btop micro bat ripgrep lazygit py312-trash-cli
+pkg_install fish starship eza zoxide direnv btop micro bat ripgrep lazygit
+# trash-cli is a Python package, named after Python's version (py311-...):
+# take the version the python3 package uses now.
+_py=$(pkg_flavor python3 'python3[0-9]+')
+[ -n "$_py" ] && pkg_try "py${_py#python}-trash-cli"
 
 # With SDDM and no KDE, unlock gnome-keyring with the login password.
 if [ "$DISPLAY_MANAGER" = sddm ] && [ "$WANT_KDE" != yes ]; then sddm_pam_enable pam_gnome_keyring; fi

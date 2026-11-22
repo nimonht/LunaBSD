@@ -126,10 +126,12 @@ hw_intel_gpu_note() {
 # hw_gpu_busid kind -> the Xorg BusID ("PCI:0:2:0") of the first GPU of that
 # kind (intel, amd, nvidia), or nothing. pciconf prints "vgapci0@pci0:0:2:0:"
 # as domain:bus:slot:function in decimal, which is what Xorg expects.
+# (" vendor=", not "subvendor=": the board maker's ID can be a GPU maker's,
+# e.g. an NVIDIA card in an Intel-made machine.)
 hw_gpu_busid() {
 	case "$1" in intel) _v=8086 ;; amd) _v=1002 ;; nvidia) _v=10de ;; *) return 0 ;; esac
 	_hw_pciconf | awk -v ven="0x$_v" '
-	/^[A-Za-z_0-9]+@pci[0-9:]+/ && /class=0x03/ && index($0, "vendor=" ven) {
+	/^[A-Za-z_0-9]+@pci[0-9:]+/ && /class=0x03/ && $0 ~ ("[ \t]vendor=" ven) {
 		a = $1; sub(/^[^@]*@pci/, "", a); sub(/:$/, "", a)
 		n = split(a, f, ":"); if (n != 4) next
 		if (f[1] == 0) printf "PCI:%d:%d:%d\n", f[2], f[3], f[4]
