@@ -381,7 +381,7 @@ step_trim() {
 	# C/C++ headers (Python keeps its own: sysconfig can read pyconfig.h).
 	find "$ROOT/usr/local/include" -mindepth 1 -maxdepth 1 ! -name 'python*' -exec rm -rf {} + 2>/dev/null || true
 	_after=$(zfs get -Hp -o value used "$BPOOL")
-	log "image: $((_before / 1048576)) MB -> $((_after / 1048576)) MB (compressed)"
+	log "image: $((_before / 1048576)) MiB -> $((_after / 1048576)) MiB (compressed)"
 }
 
 step_image() {
@@ -405,8 +405,8 @@ step_image() {
 	mdconfig -d -u "$_imd"
 	rm -f "$WORK/image.img"
 	_sz=$(stat -f %z "$CD/luna/system.zfs")
-	[ "$_sz" -lt 4294967295 ] || die "the system image is $((_sz / 1048576)) MB: an ISO 9660 file must stay under 4 GB"
-	log "system image: $((_sz / 1048576)) MB"
+	[ "$_sz" -lt 4294967295 ] || die "the system image is $((_sz / 1048576)) MiB: an ISO 9660 file must stay under 4 GiB"
+	log "system image: $((_sz / 1048576)) MiB"
 }
 
 step_ramdisk() {
@@ -533,9 +533,9 @@ step_iso() {
 
 	(cd "$OUT" && sha256 "$ISO_NAME.iso" > "$ISO_NAME.iso.sha256")
 	cp "$WORK/packages.list" "$OUT/$ISO_NAME.packages.txt" 2>/dev/null || true
-	log "done: $_iso ($(( $(stat -f %z "$_iso") / 1048576 )) MB)"
+	log "done: $_iso ($(( $(stat -f %z "$_iso") / 1048576 )) MiB)"
 	[ "$(stat -f %z "$_iso")" -le 2147483648 ] ||
-		printf 'build.sh: note: the ISO is larger than 2 GiB, the limit for a file in a GitHub release\n' >&2
+		printf 'build.sh: note: the ISO is larger than 2 GiB (2048 MiB), the limit for a file in a GitHub release\n' >&2
 }
 
 for _s in $ALL_STEPS; do

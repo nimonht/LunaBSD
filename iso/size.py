@@ -6,9 +6,14 @@
 Downloads FreeBSD's package catalogue (packagesite, about 10 MB), resolves
 iso/packages.txt with all dependencies (the DRM meta packages pinned as
 iso/build.sh does) and prints the download and installed sizes and the
-largest packages. GitHub releases take files up to 2 GiB; the ISO ends up
-a little larger than the package download (plus about 250 MB of base system,
-minus what iso/build.sh's trim step removes).
+largest packages, and an estimate of the ISO's size.
+
+GitHub releases take files up to 2 GiB (2048 MiB). Real builds came out
+about 510-545 MiB larger than the package download: FreeBSD's base system
+and kernel, and ZFS compressing in 128 KB blocks where a package compresses
+whole files, less what iso/build.sh's trim step removes. November 2026,
+"latest": about 1560 MiB of packages gave a 2107 MiB ISO; the same without
+NVIDIA's driver (its download had failed), about 1340 MiB, gave 1850 MiB.
 
 Needs: python3, and tar that reads zstd (FreeBSD's tar does; on Linux
 install zstd).
@@ -22,6 +27,8 @@ import tempfile
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ISO_OVER_DOWNLOAD = 550 * 2**20     # ISO minus package download, measured (see above)
+RELEASE_LIMIT = 2 * 2**30           # largest file in a GitHub release
 
 
 def catalogue(branch):
@@ -71,8 +78,10 @@ def main():
     if missing:
         print("not in the '%s' branch: %s" % (args.branch, ", ".join(sorted(set(missing)))))
         return 1
-    if dl > 1.7 * 2**30:
-        print("warning: the ISO will probably be larger than GitHub's 2 GiB limit for release files")
+    iso = dl + ISO_OVER_DOWNLOAD
+    print("ISO: about %.0f MiB (a GitHub release file can be at most %.0f MiB)" % (iso / 2**20, RELEASE_LIMIT / 2**20))
+    if iso > RELEASE_LIMIT - 50 * 2**20:
+        print("warning: the ISO will probably be too large for a GitHub release; trim it or leave packages out")
     return 0
 
 

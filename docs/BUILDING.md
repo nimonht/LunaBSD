@@ -54,8 +54,12 @@ GitHub Actions does the same: the *ISO* workflow
 ([`.github/workflows/iso.yml`](../.github/workflows/iso.yml)) runs on demand
 (*Actions > ISO > Run workflow*), boots the result once in QEMU, and keeps
 the ISO as a download. Pushing a tag such as `v0.1` also publishes it as a
-release. GitHub limits a release file to 2 GiB; the ISO is about 1.5 to
-2 GB, so watch its size when adding packages.
+release. GitHub limits a release file to 2 GiB (2048 MiB). The ISO is
+currently over that: 2107 MiB with NVIDIA's driver (the workflow's run of
+November 2026). A local build came out at 1850 MiB only because its NVIDIA
+download had failed (`build.sh: WARNING: no consistent NVIDIA driver`), so
+read the build log, not just the size. `python3 iso/size.py` estimates the
+ISO from the package catalogue; check it when adding packages.
 
 An ISO that passed the workflow's boot tests also gets a build attestation
 ([`actions/attest`](https://github.com/actions/attest)): a Sigstore
