@@ -8,12 +8,12 @@ iso/packages.txt with all dependencies (the DRM meta packages pinned as
 iso/build.sh does) and prints the download and installed sizes and the
 largest packages, and an estimate of the ISO's size.
 
-GitHub releases take files up to 2 GiB (2048 MiB). Real builds came out
-about 510-545 MiB larger than the package download: FreeBSD's base system
-and kernel, and ZFS compressing in 128 KB blocks where a package compresses
-whole files, less what iso/build.sh's trim step removes. November 2026,
-"latest": about 1560 MiB of packages gave a 2107 MiB ISO; the same without
-NVIDIA's driver (its download had failed), about 1340 MiB, gave 1850 MiB.
+GitHub releases take files up to 2 GiB (2048 MiB). The ISO comes out
+larger than the package download: FreeBSD's base system and kernel, and ZFS
+compressing in 128 KB blocks where a package compresses whole files, less
+what iso/build.sh's trim step removes. November 2026, "latest": about
+1560 MiB of packages gave a 1893 MiB ISO (2107 MiB before the trim step
+removed the compilers' unused libraries and the old kernel).
 
 Needs: python3, and tar that reads zstd (FreeBSD's tar does; on Linux
 install zstd).
@@ -27,7 +27,7 @@ import tempfile
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ISO_OVER_DOWNLOAD = 550 * 2**20     # ISO minus package download, measured (see above)
+ISO_OVER_DOWNLOAD = 340 * 2**20     # ISO minus package download, measured (see above)
 RELEASE_LIMIT = 2 * 2**30           # largest file in a GitHub release
 
 

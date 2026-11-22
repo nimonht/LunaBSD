@@ -75,7 +75,7 @@ want() { case " $STEPS " in *" $1 "*) return 0 ;; esac; return 1; }
 
 [ "$(uname -s)" = FreeBSD ] || die "this runs on FreeBSD 15 (the build needs FreeBSD's pkg, makefs, mkimg and ZFS)"
 [ "$(id -u)" -eq 0 ] || die "run it as root"
-for _t in makefs mkimg etdump pkg zpool zfs mdconfig kldxref; do
+for _t in makefs mkimg etdump pkg zpool zfs mdconfig kldxref readelf; do
 	command -v "$_t" >/dev/null 2>&1 || die "$_t is missing"
 done
 kldload -n zfs
@@ -349,6 +349,64 @@ PROFILE
 		> "$ROOT/usr/local/share/$DISTRO_ID/live-build"
 }
 
+# elf_needed FILE   the libraries an ELF file links to (its NEEDED entries)
+elf_needed() {
+	readelf -d "$1" 2>/dev/null | sed -n 's/.*NEEDED.*\[\(.*\)\]$/\1/p'
+}
+lines() { wc -l < "$1" | tr -d ' '; }
+
+# Compilers that came in as dependencies (Mesa links to LLVM's library,
+# OpenBLAS to gcc's Fortran runtime): of their files, only the shared
+# libraries that another program or library in the image links to stay,
+# with whatever those link to in turn. Their programs, sanitizer runtimes,
+# MLIR, lldb, libgccjit, libbfd and the like go.
+trim_compilers() {
+	_cf=$WORK/trim-compiler-files
+	_nd=$WORK/trim-needed
+	: > "$_cf"
+	for _cp in $(in_root_pkg query -g '%n' 'llvm[0-9]*' 'gcc[0-9]*' binutils 2>/dev/null); do
+		in_root_pkg info -ql "$_cp" >> "$_cf"
+	done
+	if [ ! -s "$_cf" ]; then
+		rm -f "$_cf"
+		return 0
+	fi
+	LC_ALL=C sort -u -o "$_cf" "$_cf"
+	grep -Ev '\.so(\.[0-9]+)*$' "$_cf" | sed "s|^|$ROOT|" | tr '\n' '\0' | xargs -0 rm -f
+	grep -E '\.so(\.[0-9]+)*$' "$_cf" > "$_cf.so" || true
+	# What every other program and library in the image links to.
+	(cd "$ROOT" && find . -path ./dev -prune -o -type f \( -perm -u+x -o -name '*.so*' \) -print) |
+		sed 's|^\.||' | LC_ALL=C sort | LC_ALL=C comm -23 - "$_cf" |
+		while IFS= read -r _cf_f; do elf_needed "$ROOT$_cf_f"; done | LC_ALL=C sort -u > "$_nd"
+	[ -s "$_nd" ] || die "no program in the image links to any library (is readelf missing?)"
+	# Then what the needed ones link to, until nothing new turns up. A
+	# needed name that is a symbolic link keeps the file it points to.
+	_cn=0
+	while [ "$(lines "$_nd")" -ne "$_cn" ]; do
+		_cn=$(lines "$_nd")
+		while IFS= read -r _cf_f; do
+			grep -qxF "${_cf_f##*/}" "$_nd" || continue
+			_ct=$ROOT$_cf_f
+			_ci=0
+			while [ -L "$_ct" ] && [ "$_ci" -lt 20 ]; do
+				_cl=$(readlink "$_ct")
+				case "$_cl" in /*) _ct=$ROOT$_cl ;; *) _ct=${_ct%/*}/$_cl ;; esac
+				_ci=$((_ci + 1))
+			done
+			{ echo "${_ct##*/}"; elf_needed "$_ct"; } >> "$_nd"
+		done < "$_cf.so"
+		LC_ALL=C sort -u -o "$_nd" "$_nd"
+	done
+	_cr=0
+	while IFS= read -r _cf_f; do
+		grep -qxF "${_cf_f##*/}" "$_nd" && continue
+		rm -f "$ROOT$_cf_f"
+		_cr=$((_cr + 1))
+	done < "$_cf.so"
+	log "compilers: kept $(($(lines "$_cf.so") - _cr)) libraries other programs link to, removed $_cr"
+	rm -f "$_cf" "$_cf.so" "$_nd"
+}
+
 # Files nobody needs on a live system: compilers, headers, static libraries,
 # documentation. Installations download their own packages, so this only
 # makes the ISO smaller.
@@ -361,10 +419,16 @@ step_trim() {
 		rm -rf usr/share/doc usr/local/share/doc usr/share/examples usr/tests usr/lib/debug \
 			usr/include usr/lib/clang usr/local/share/gtk-doc var/cache/pkg/* var/db/freebsd-update/* \
 			usr/share/man usr/local/share/man usr/local/man usr/local/share/info
+		# freebsd-update's copy of the unpatched kernel (the live system
+		# never boots it), DocBook's stylesheets (they turn the handbooks
+		# removed above into pages), CMake's files for building against
+		# the libraries.
+		rm -rf boot/kernel.old usr/local/share/xsl usr/local/lib/cmake
 		# test suites of Python and its packages
 		find usr/local/lib/python3* -type d \( -name test -o -name tests -o -name idle_test \) \
 			-prune -exec rm -rf {} + 2>/dev/null || true
-		find usr/lib usr/lib32 -name '*.a' -type f -delete 2>/dev/null || true
+		# static libraries (Python's libpython3.x.a among them)
+		find usr/lib usr/lib32 usr/local/lib usr/local/lib32 -name '*.a' -type f -delete 2>/dev/null || true
 		for _f in cc c++ clang clang++ clang-cpp cpp ld ld.lld lld lldb lldb-server \
 			llvm-addr2line llvm-ar llvm-cov llvm-cxxfilt llvm-nm llvm-objcopy llvm-objdump \
 			llvm-profdata llvm-ranlib llvm-readelf llvm-readobj llvm-size llvm-strings \
@@ -372,14 +436,11 @@ step_trim() {
 			rm -f "usr/bin/$_f"
 		done
 	)
-	# Compilers that came as dependencies: keep their shared libraries only.
-	for _p in llvm19 llvm20 llvm21 gcc13 gcc14 gcc15 binutils; do
-		in_root_pkg info -e "$_p" 2>/dev/null || continue
-		in_root_pkg info -ql "$_p" | grep -Ev '\.so(\.[0-9]+)*$' | sed "s|^|$ROOT|" |
-			tr '\n' '\0' | xargs -0 rm -f
-	done
+	trim_compilers
 	# C/C++ headers (Python keeps its own: sysconfig can read pyconfig.h).
 	find "$ROOT/usr/local/include" -mindepth 1 -maxdepth 1 ! -name 'python*' -exec rm -rf {} + 2>/dev/null || true
+	# (ZFS frees deleted blocks in the background; count after it has)
+	zpool wait -t free "$BPOOL" 2>/dev/null || sleep 10
 	_after=$(zfs get -Hp -o value used "$BPOOL")
 	log "image: $((_before / 1048576)) MiB -> $((_after / 1048576)) MiB (compressed)"
 }

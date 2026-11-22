@@ -54,12 +54,12 @@ GitHub Actions does the same: the *ISO* workflow
 ([`.github/workflows/iso.yml`](../.github/workflows/iso.yml)) runs on demand
 (*Actions > ISO > Run workflow*), boots the result once in QEMU, and keeps
 the ISO as a download. Pushing a tag such as `v0.1` also publishes it as a
-release. GitHub limits a release file to 2 GiB (2048 MiB). The ISO is
-currently over that: 2107 MiB with NVIDIA's driver (the workflow's run of
-November 2026). A local build came out at 1850 MiB only because its NVIDIA
-download had failed (`build.sh: WARNING: no consistent NVIDIA driver`), so
-read the build log, not just the size. `python3 iso/size.py` estimates the
-ISO from the package catalogue; check it when adding packages.
+release. GitHub limits a release file to 2 GiB (2048 MiB); the ISO is
+about 1.85 GiB (1893 MiB in November 2026, NVIDIA's driver included).
+`python3 iso/size.py` estimates it from the package catalogue; check it
+when adding packages. A build whose log says `no consistent NVIDIA driver`
+has no NVIDIA driver (about 250 MiB smaller, often a failed download): build
+it again rather than publish it.
 
 An ISO that passed the workflow's boot tests also gets a build attestation
 ([`actions/attest`](https://github.com/actions/attest)): a Sigstore
@@ -150,7 +150,7 @@ one; `root` has no password either, as on FreeBSD's own install media.
 | `root` | a ZFS pool in a file (`iso/work/root.img`, compression zstd), the base system unpacked into it, `freebsd-update` patches |
 | `packages` | the packages in [`iso/packages.txt`](../iso/packages.txt), installed with `pkg -c` (the image's own ABI, repositories and install scripts). `drm-kmod` and `nvidia-drm-kmod` are pinned to one DRM version first |
 | `configure` | this repository as `/usr/local/share/freebsd-setup` (as on installed systems), branding (`lib/branding.sh`), the installer, the live session files from [`iso/live/`](../iso/live), the live user, the release's `MANIFEST` (the installer checks the base system it downloads against it) |
-| `trim` | compilers, headers, static libraries, documentation, manual pages and Python test suites removed: nobody compiles on a live system, and installations download their own packages |
+| `trim` | compilers (only the shared libraries something links to stay), headers, static libraries, documentation, manual pages, Python test suites and freebsd-update's `kernel.old` removed: nobody compiles on a live system, and installations download their own packages |
 | `image` | every block recompressed once at zstd-19 (`ZSTD_LEVEL`) in a second pool, then `zfs send -c` into `luna/system.zfs`. Packages are installed with fast zstd, so only this step is slow |
 | `ramdisk` | the ramdisk with `/rescue` |
 | `iso` | boot files, the EFI image, `makefs -t cd9660`, the hybrid GPT (`mkimg`, as FreeBSD's `mkisoimages.sh`) |
