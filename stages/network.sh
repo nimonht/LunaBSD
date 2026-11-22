@@ -9,7 +9,8 @@ _cc=""
 for _w in $(sysrc -a 2>/dev/null | sed -n 's/^\(create_args_wlan[0-9]*\):.*/\1/p;s/^ifconfig_\(wlan[0-9]*\):.*/\1/p' | sort -u); do
 	case "$_w" in create_args_*) continue ;; esac
 	if [ -n "$_cc" ] && ! sysrc -n "create_args_$_w" 2>/dev/null | grep -q country; then
-		sysrc "create_args_$_w=country $_cc" >/dev/null
+		_old=$(sysrc -n "create_args_$_w" 2>/dev/null || true)
+		sysrc "create_args_$_w=${_old:+$_old }country $_cc" >/dev/null
 		say "Wi-Fi $_w: regulatory domain $_cc (from time zone $_tz)"
 	fi
 done

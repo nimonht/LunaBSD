@@ -419,7 +419,7 @@ def main():
         gi.require_version("GLibUnix", "2.0")
         from gi.repository import GLibUnix
         add_signal = GLibUnix.signal_add
-    except (ImportError, ValueError):
+    except (ImportError, ValueError, AttributeError):
         add_signal = GLib.unix_signal_add
     for sig in (15, 2):
         add_signal(GLib.PRIORITY_DEFAULT, sig, loop.quit)

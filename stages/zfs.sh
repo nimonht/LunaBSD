@@ -10,7 +10,9 @@ say "pool '$POOL': autotrim on, monthly scrub, ARC capped at ${ARC_MAX_GB} GiB"
 zpool set autotrim=on "$POOL" 2>/dev/null || true
 ARC_BYTES=$(( ARC_MAX_GB * 1024 * 1024 * 1024 ))
 loader_set vfs.zfs.arc.max "$ARC_BYTES"
-sysctl vfs.zfs.arc.max="$ARC_BYTES" >/dev/null 2>&1 || sysctl vfs.zfs.arc_max="$ARC_BYTES" >/dev/null 2>&1 || true
+if is_live; then
+	sysctl vfs.zfs.arc.max="$ARC_BYTES" >/dev/null 2>&1 || sysctl vfs.zfs.arc_max="$ARC_BYTES" >/dev/null 2>&1 || true
+fi
 
 set_kv /etc/periodic.conf daily_scrub_zfs_enable '"YES"'
 set_kv /etc/periodic.conf daily_scrub_zfs_default_threshold '"30"'   # days between scrubs
@@ -28,8 +30,8 @@ if is_yes AUTO_SNAPSHOTS; then
 	case "$_monthly" in ''|*[!0-9]*) _monthly=2 ;; esac
 	[ "$_monthly" -lt 2 ] && _monthly=2
 	say "automatic snapshots: 4x15min, 24 hourly, 7 daily, 4 weekly, $_monthly monthly"
-	mkdir -p /usr/local/etc/cron.d
-	cat > /usr/local/etc/cron.d/zfs-auto-snapshot <<CRON
+	_cron=$(mktemp)
+	cat > "$_cron" <<CRON
 # Rolling ZFS snapshots (zfstools). Written by FreeBSD-setup.
 SHELL=/bin/sh
 PATH=/etc:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
@@ -39,6 +41,9 @@ PATH=/etc:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
 14       0 * * 7 root zfs-auto-snapshot weekly    4
 28       0 1 * * root zfs-auto-snapshot monthly   $_monthly
 CRON
+	# Never replace a schedule the owner wrote themselves.
+	sys_file "$_cron" /usr/local/etc/cron.d/zfs-auto-snapshot || true
+	rm -f "$_cron"
 	# Snapshot everything on the pool, except data that is pointless to keep.
 	zfs set com.sun:auto-snapshot=true "$POOL"
 	for ds in tmp var/tmp var/crash var/audit usr/obj usr/ports usr/src; do
