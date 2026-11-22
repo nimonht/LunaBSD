@@ -56,6 +56,12 @@ jobs:
           WORK: tests/vm/live-work-usb
         run: sh tests/vm/run-live-test.sh iso/out/*.iso uefi
 
+      - name: KDE Plasma's way on the live stick (forced; it must fall back to the installer in a VM)
+        env:
+          PLASMA: fallback
+          WORK: tests/vm/live-work-plasma
+        run: sh tests/vm/run-live-test.sh iso/out/*.iso uefi
+
       - name: Secure Boot in Setup Mode (own keys enrolled; signed loader starts, unsigned refused)
         run: sh tests/vm/run-secureboot-test.sh iso/out/*.iso setup
 

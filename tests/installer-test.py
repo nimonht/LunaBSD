@@ -8,6 +8,7 @@ install.sh, the answers file (sourced by a real sh here), and progress.
 Runs anywhere with Python 3; Qt is not needed.
 """
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -102,6 +103,45 @@ class Checks(unittest.TestCase):
         self.assertEqual(backend.check_fullname("Nguyễn Văn A"), "")
         for n in ["", "a:b", 'a"b', "a\\b", "a\nb"]:
             self.assertNotEqual(backend.check_fullname(n), "", repr(n))
+
+    def test_install_sh_fullname_and_disk_contents(self):
+        """install.sh's own valid_fullname refuses a newline (grep reads lines),
+        and disk_contents does not count free space as a partition."""
+        with open(os.path.join(REPO, "install.sh")) as f:
+            text = f.read()
+        fn = re.search(r"^valid_fullname\(\) \{.*?^\}", text, re.S | re.M).group(0)
+        dc = re.search(r"^disk_contents\(\) \{.*?^\}", text, re.S | re.M).group(0)
+        script = "NL='\n'\n" + fn + "\n" + dc + "\n" + \
+            "gpart() { printf '%s\\n' '=>  40  100  da0  GPT  (1G)' '  40  2  -  free  -  (1K)' " \
+            "'  42  50  da0p1  ms-basic-data  (25K)' '  92  48  -  free  -  (24K)'; }\n" + \
+            'valid_fullname "$1" && echo ok || echo bad\ndisk_contents da0\n'
+        for name, want in (("Alex Morgan", "ok"), ("a\nb", "bad"), ("a:b", "bad")):
+            out = subprocess.run(["sh", "-c", script, "sh", name], capture_output=True, check=True).stdout.decode().split("\n")
+            self.assertEqual(out[0], want, repr(name))
+            self.assertEqual(out[1].strip(), "Windows/data (1)")
+
+    def test_install_sh_swap_gives_way(self):
+        """The size the installers offer starts at MIN_GB: install.sh's
+        plan_sizes must not then refuse it because automatic swap took part
+        of it. A chosen swap size is kept (and refused when it does not fit)."""
+        with open(os.path.join(REPO, "install.sh")) as f:
+            text = f.read()
+        ps = re.search(r"^plan_sizes\(\) \{.*?^\}", text, re.S | re.M).group(0)
+        script = ("die() { echo \"DIE: $*\"; exit 0; }\n"
+                  "valid_number() { case \"$1\" in ''|*[!0-9]*) return 1 ;; esac; }\n"
+                  "disk_secsize() { echo 512; }\nzpool() { return 1; }\n" + ps + "\n"
+                  "INSTALL_MODE=alongside MIN_GB=30 FREE_START=2048 POOL=zroot\n"
+                  "FREE_GB=$1 FREE_SECTORS=$(( $1 * 1073741824 / 512 )) ZFS_SIZE_GB=$2 HW_RAM_MB=$3 SWAP_SIZE=$4\n"
+                  "plan_sizes; echo \"swap=$(( SWAP_SECTORS * 512 / 1048576 )) zfs=$ZFS_GB\"\n")
+
+        def plan(free, asked, ram, swap="auto"):
+            return subprocess.run(["sh", "-c", script, "sh", str(free), asked, str(ram), swap],
+                                  capture_output=True, check=True).stdout.decode().strip()
+        self.assertEqual(plan(30, "30", 16384), "swap=0 zfs=30")
+        self.assertEqual(plan(34, "", 16384), "swap=4096 zfs=30")
+        self.assertEqual(plan(100, "", 4096), "swap=4096 zfs=96")
+        self.assertTrue(plan(30, "30", 16384, "4g").startswith("DIE:"))
+        self.assertTrue(plan(29, "", 8192).startswith("DIE:"))
 
     def test_suggest_username(self):
         self.assertEqual(backend.suggest_username("Alex Morgan"), "alex")

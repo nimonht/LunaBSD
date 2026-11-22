@@ -17,7 +17,10 @@ if [ "$PKG_BRANCH" = quarterly ] && grep -qs '/latest"' "$_repo"; then
 fi
 say "package branch: $PKG_BRANCH"
 mkdir -p /usr/local/etc/pkg/repos
-cat > "$_repo" <<CONF
+if [ -f "$_repo" ] && ! grep -q 'Written by FreeBSD-setup' "$_repo"; then
+	say "kept your own $_repo (package branch settings are not changed)"
+else
+	cat > "$_repo" <<CONF
 # Written by FreeBSD-setup. Overrides /etc/pkg/FreeBSD.conf.
 FreeBSD-ports: {
   url: "pkg+https://pkg.FreeBSD.org/\${ABI}/$PKG_BRANCH"
@@ -26,6 +29,7 @@ FreeBSD-ports-kmods: {
   url: "pkg+https://pkg.FreeBSD.org/\${ABI}/kmods_${PKG_BRANCH}_\${VERSION_MINOR}"
 }
 CONF
+fi
 
 say "bootstrapping pkg and updating the package catalogue"
 env ASSUME_ALWAYS_YES=yes pkg bootstrap -f >> "$LOG" 2>&1 ||

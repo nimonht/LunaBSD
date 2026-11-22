@@ -171,9 +171,12 @@ resolve_config() {
 	if [ "$PKG_BRANCH" = auto ]; then
 		PKG_BRANCH=quarterly; [ "$WANT_HYPR" = yes ] && PKG_BRANCH=latest
 	fi
+	# ly for both desktops: it starts a session on the console it shows,
+	# which is what KWin needs to get the graphics card from ConsoleKit2
+	# (FreeBSD has no logind). Plasma started by SDDM has no console and
+	# stops at once ("Could not determine the active graphical session").
 	if [ "$DISPLAY_MANAGER" = auto ]; then
-		if [ "$WANT_KDE" = yes ]; then DISPLAY_MANAGER=sddm
-		elif [ "$WANT_HYPR" = yes ]; then DISPLAY_MANAGER=ly
+		if [ "$WANT_KDE" = yes ] || [ "$WANT_HYPR" = yes ]; then DISPLAY_MANAGER=ly
 		else DISPLAY_MANAGER=none; fi
 	fi
 	if [ "$INSTALL_GAMING" = auto ]; then

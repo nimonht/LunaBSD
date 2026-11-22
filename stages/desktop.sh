@@ -28,8 +28,8 @@ install_file "$REPO_DIR/files/desktop/50-freebsd-setup.rules" /usr/local/etc/pol
 if [ -n "${KEYBOARD_LAYOUT:-}" ]; then
 	_xkb=$KEYBOARD_LAYOUT _var=""
 	case "$_xkb" in us-intl) _xkb=us _var=intl ;; esac
-	mkdir -p /usr/local/etc/X11/xorg.conf.d
-	cat > /usr/local/etc/X11/xorg.conf.d/00-keyboard.conf <<XORG
+	_kbc=$(mktemp)
+	cat > "$_kbc" <<XORG
 # Written by FreeBSD-setup.
 Section "InputClass"
 	Identifier "keyboard"
@@ -38,6 +38,8 @@ Section "InputClass"
 	Option "XkbVariant" "$_var"
 EndSection
 XORG
+	sys_file "$_kbc" /usr/local/etc/X11/xorg.conf.d/00-keyboard.conf || true
+	rm -f "$_kbc"
 fi
 
 # ---- login screen ------------------------------------------------------------

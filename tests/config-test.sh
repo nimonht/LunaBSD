@@ -25,11 +25,11 @@ t() {
 	else fail=$((fail + 1)); echo "FAIL DESKTOP=$1: got '$_got', want '$3'"; fi
 }
 
-t kde      yes "yes no sddm quarterly yes kde"
+t kde      yes "yes no ly quarterly yes kde"
 t hyprland yes "no yes ly latest yes hyprland"
-t both     yes "yes yes sddm latest yes both"
+t both     yes "yes yes ly latest yes both"
 t none     yes "no no none quarterly no none"
-t auto     yes "yes no sddm quarterly yes kde"
+t auto     yes "yes no ly quarterly yes kde"
 t auto     no  "no no none quarterly no none"
 
 # Terminal style: auto is fish with a desktop and none without; an explicit

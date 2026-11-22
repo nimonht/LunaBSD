@@ -32,4 +32,12 @@ t thinkpad-t480     no  none
 # A file the user wrote is never removed.
 echo '# mine' > "$D/20-nvidia.conf"
 t amd-desktop       no  20-nvidia.conf '# mine'
+# The GPU is found by its own vendor ID, not by the board maker's
+# ("subvendor="): here an NVIDIA card made for an Intel board comes first.
+_ids=$(. "$HERE/../lib/hw.sh"; _hw_pciconf() { printf '%s\n' \
+	'vgapci0@pci0:1:0:0:	class=0x030200 rev=0xa1 hdr=0x00 vendor=0x10de device=0x1c8d subvendor=0x8086 subdevice=0x2068' \
+	'vgapci1@pci0:0:2:0:	class=0x030000 rev=0x04 hdr=0x00 vendor=0x8086 device=0x591b subvendor=0x8086 subdevice=0x2068'; }
+	echo "$(hw_gpu_busid intel) $(hw_gpu_busid nvidia)")
+if [ "$_ids" = "PCI:0:2:0 PCI:1:0:0" ]; then echo "ok   GPU bus IDs by vendor, not subvendor"
+else echo "FAIL GPU bus IDs by vendor: got '$_ids'"; fail=1; fi
 exit $fail

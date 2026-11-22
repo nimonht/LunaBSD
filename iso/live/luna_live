@@ -12,6 +12,14 @@
 #   - starts KDE Plasma (Wayland) when the driver gives a display, and
 #     otherwise the installer alone on a basic framebuffer (X11): virtual
 #     machines and graphics cards FreeBSD has no driver for
+#   - Plasma is not started by SDDM: the live user is logged in on the
+#     first console (getty, gettytab "luna.live") and ~/.profile starts it
+#     there (/usr/local/libexec/luna-plasma). KWin gets the graphics card
+#     from ConsoleKit2 (FreeBSD has no logind), which gives devices only to
+#     the session of the console on screen; a session SDDM starts has no
+#     console, and KWin stopped at once ("Could not determine the active
+#     graphical session", seen on a real laptop). If Plasma does not come
+#     up, luna-plasma runs "service luna_live fallback": the installer
 #   - starts nothing graphical when the text-mode installer was picked
 #     (the boot menu's Troubleshooting submenu; /etc/rc.local runs it)
 # The decision and its reason are kept in /var/run/luna-live/ for the
@@ -24,11 +32,28 @@ desc="LunaBSD live session: graphics driver and session"
 rcvar=luna_live_enable
 start_cmd=luna_live_start
 stop_cmd=":"
+extra_commands="fallback"
+fallback_cmd=luna_live_fallback
 
 FBS_LIB=/usr/local/share/freebsd-setup/lib
 STATE=/var/run/luna-live
 XDIR=/usr/local/etc/X11/xorg.conf.d
 NVOFF=/usr/local/share/luna-live/nvidia-off
+
+# X11 on the firmware's framebuffer, for the installer when no graphics
+# driver runs (scfb on UEFI, vesa on BIOS).
+luna_live_fb() {
+	local _fb
+	_fb=scfb; [ "$(sysctl -n machdep.bootmethod 2>/dev/null)" = UEFI ] || _fb=vesa
+	mkdir -p "$XDIR"
+	cat > "$XDIR/10-luna-live-fb.conf" <<XORG
+# Written by FreeBSD-setup: LunaBSD live session without a graphics driver.
+Section "Device"
+	Identifier "Basic framebuffer"
+	Driver     "$_fb"
+EndSection
+XORG
+}
 
 luna_live_load() { # module -> loaded and a display appeared
 	kldload -n "$1" > /dev/null 2>&1 || return 1
@@ -47,7 +72,12 @@ luna_live_start()
 	mkdir -p "$STATE"
 	live_plan "$(kenv -q luna.text_installer)" "$(kenv -q luna.basic_graphics)"
 	session=$LIVE_SESSION reason=$LIVE_REASON driver=$LIVE_DRIVER
-	if [ "$session" = plasma ]; then
+	# Tests: go the Plasma way without a graphics driver (it fails, and the
+	# fallback to the installer is what is tested). tests/vm/run-live-test.sh
+	if [ -n "$(kenv -q luna.test_plasma)" ] && [ "$session" = installer ]; then
+		session=plasma driver=none
+	fi
+	if [ "$session" = plasma ] && [ "$driver" != none ]; then
 		echo "LunaBSD: starting the graphics driver ($driver)"
 		if ! luna_live_load "$driver"; then
 			session=installer
@@ -76,24 +106,19 @@ luna_live_start()
 	# X11 (the login screen, and the installer session): the NVIDIA driver,
 	# or a basic framebuffer when no graphics driver runs.
 	FBS_LIB="$FBS_LIB" /usr/local/share/freebsd-setup/files/bin/gpu-xorg-config > /dev/null 2>&1 || true
-	mkdir -p "$XDIR"
 	rm -f "$XDIR/10-luna-live-fb.conf"
-	if [ "$session" = installer ]; then
-		_fb=scfb; [ "$HW_BOOT" = UEFI ] || _fb=vesa
-		cat > "$XDIR/10-luna-live-fb.conf" <<XORG
-# Written by FreeBSD-setup: LunaBSD live session without a graphics driver.
-Section "Device"
-	Identifier "Basic framebuffer"
-	Driver     "$_fb"
-EndSection
-XORG
-	fi
+	[ "$session" = installer ] && luna_live_fb
 
 	case "$session" in
 	plasma)    _s=plasma.desktop ;;
 	installer) _s=luna-installer.desktop ;;
 	esac
-	if [ "$session" = text ]; then
+	if [ "$session" = plasma ]; then
+		# Plasma on the first console (see the top of this file).
+		echo 'sddm_enable="NO"' > /etc/rc.conf.d/sddm
+		sed -i '' -E 's|^ttyv0([[:space:]]+)"/usr/libexec/getty Pc"|ttyv0\1"/usr/libexec/getty luna.live"|' /etc/ttys
+		install -o "$LIVE_USER" -m 644 /dev/null "$STATE/plasma.log"
+	elif [ "$session" = text ]; then
 		echo 'sddm_enable="NO"' > /etc/rc.conf.d/sddm
 	else
 		echo 'sddm_enable="YES"' > /etc/rc.conf.d/sddm
@@ -109,6 +134,36 @@ CONF
 	printf '%s\n' "$reason" > "$STATE/reason"
 	echo "$driver" > "$STATE/driver"
 	echo "LunaBSD: live session: $session${reason:+ ($reason)}"
+}
+
+# Plasma did not come up (luna-plasma, as the live user, through doas): the
+# installer instead, through SDDM on X11 like a computer without a driver,
+# with the reason on its first page. The first console gets its normal
+# login back.
+luna_live_fallback()
+{
+	. /usr/local/share/freebsd-setup/distro.conf
+	[ "$(cat "$STATE/session" 2>/dev/null)" = plasma ] || return 0
+	echo installer > "$STATE/session"
+	printf '%s\n' "KDE Plasma did not start with the $(cat "$STATE/driver") graphics driver (its messages: $STATE/plasma.log)" > "$STATE/reason"
+	[ -e /dev/dri/card0 ] || luna_live_fb
+	echo 'sddm_enable="YES"' > /etc/rc.conf.d/sddm
+	cat > /usr/local/etc/sddm.conf.d/20-luna-autologin.conf <<CONF
+# Written by FreeBSD-setup: the live session starts without a login.
+[Autologin]
+User=$LIVE_USER
+Session=luna-installer.desktop
+Relogin=false
+CONF
+	sed -i '' -E 's|^ttyv0([[:space:]]+)"/usr/libexec/getty luna.live"|ttyv0\1"/usr/libexec/getty Pc"|' /etc/ttys
+	# SDDM in a session of its own (daemon -f: setsid). This command runs in
+	# the first console's session (luna-plasma's), which ends next; whatever
+	# it starts there gets the hangup, and SDDM never came up (seen in QEMU:
+	# no Xorg, no installer after the fallback). Then init takes the
+	# console's normal login back (it ends that session on the HUP).
+	daemon -f /usr/sbin/service sddm start
+	sleep 2
+	kill -HUP 1
 }
 
 load_rc_config $name

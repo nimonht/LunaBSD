@@ -9,8 +9,9 @@ Start here:
 - **The hardware report**: `freebsd-setup --report` says what was detected and
   what is known not to work.
 - **A text console** is always available with `Ctrl+Alt+F3` (or F4, F5...).
-  The SDDM login screen and desktop come back with `Ctrl+Alt+F9`; with the
-  `ly` login screen it is `Ctrl+Alt+F2`.
+  The `ly` login screen and the desktop come back with `Ctrl+Alt+F2` (on the
+  live USB stick, KDE Plasma is on `Ctrl+Alt+F1`; the installer alone, which
+  SDDM starts, on `Ctrl+Alt+F9`).
 - **Undo**: `sysup` makes a boot environment named `pre-upgrade-...` before
   every update. In FreeBSD's boot menu press **8** (*Boot Environments*) and
   pick the newest one, or run `doas bectl activate <name>` and restart. That
@@ -209,7 +210,7 @@ cat $XDG_RUNTIME_DIR/hypr-session.log   # Hyprland
   GPU. The login screen is pinned to it in
   `/usr/local/etc/X11/xorg.conf.d/20-primary-gpu.conf`, which
   `gpu-xorg-config` rewrites at every start; run `doas gpu-xorg-config` and
-  `doas service sddm restart` if it is missing.
+  restart if it is missing.
   For Hyprland, force it in `~/.config/hypr-session.env`:
   `export AQ_DRM_DEVICES=/dev/dri/card0`. To leave the NVIDIA card without a
   driver, set `GPU_DRIVERS="intel"` (or `amd`) in
@@ -223,7 +224,11 @@ cat $XDG_RUNTIME_DIR/hypr-session.log   # Hyprland
   restart. A laptop installed in discrete mode has no driver for the
   integrated GPU until you do this.
 - **Back at the login screen right after logging in**: the session crashed.
-  KDE: `cat ~/.local/share/sddm/wayland-session.log`.
+  KDE: `cat ~/.local/share/sddm/wayland-session.log` (SDDM) or, from ly,
+  run `ck-launch-session dbus-run-session startplasma-wayland` on a text
+  console to see its messages. KDE Plasma does not start from SDDM on
+  FreeBSD (KWin gets no graphics card without logind): the login screen for
+  KDE is ly. On the live USB stick: `/var/run/luna-live/plasma.log`.
   Hyprland: `cat $XDG_RUNTIME_DIR/hypr-session.log`.
 - **KDE could not be installed**: the installer's last screen (and
   `/var/log/freebsd-setup.warnings`) says why. If it says *"could not be

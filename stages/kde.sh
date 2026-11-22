@@ -66,6 +66,10 @@ fi
 # Open the KDE wallet with the login password, so programs do not ask for a
 # wallet password (only after Plasma installed: it brings the PAM module).
 [ "$DISPLAY_MANAGER" = sddm ] && sddm_pam_enable pam_kwallet5
-say "KDE Plasma installed - choose 'Plasma (Wayland)' at the login screen"
+if [ "$DISPLAY_MANAGER" = sddm ]; then
+	warn "KDE Plasma (Wayland) does not start from the SDDM login screen on FreeBSD (no logind: KWin gets no graphics card); use ly: set DISPLAY_MANAGER=ly in /usr/local/etc/freebsd-setup.conf and run: doas freebsd-setup desktop"
+else
+	say "KDE Plasma installed - choose 'Plasma (Wayland)' at the login screen (left/right arrow keys)"
+fi
 
 true   # (a stage must not end on a failed test: setup.sh runs under set -e)

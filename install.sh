@@ -185,7 +185,7 @@ gb() { echo $(( $1 / 1073741824 )); }
 # What is on the disk now, in words.
 disk_contents() {
 	gpart show -p "$1" 2>/dev/null | awk '
-	NR > 1 && $4 != "-" {
+	NR > 1 && $3 != "-" {
 		t = $4
 		if (t == "efi") e++
 		else if (t == "ms-basic-data") w++
@@ -411,7 +411,7 @@ valid_hostname() { echo "$1" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9.-]{0,62}[A-Za-z
 # A full name for the password database: no colon (field separator), no
 # quote, backslash or control characters.
 valid_fullname() {
-	case "$1" in *:*|*'"'*|*\\*) return 1 ;; esac
+	case "$1" in *:*|*'"'*|*\\*|*"$NL"*) return 1 ;; esac
 	! printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'
 }
 
@@ -672,7 +672,9 @@ ask_desktop() {
 plan_sizes() {
 	SECSIZE=$(disk_secsize "$INSTALL_DISK")
 	ALIGN=$(( 1048576 / SECSIZE ))
+	_swap_auto=no
 	if [ "$SWAP_SIZE" = auto ]; then
+		_swap_auto=yes
 		_g=$(( (HW_RAM_MB + 1023) / 1024 )); [ "$_g" -lt 2 ] && _g=2; [ "$_g" -gt 8 ] && _g=8
 		SWAP_SIZE="${_g}g"
 	fi
@@ -694,6 +696,15 @@ plan_sizes() {
 		ZFS_SECTORS=$(( USABLE - SWAP_SECTORS ))
 	else
 		USABLE=$(( $(disk_bytes "$INSTALL_DISK") / SECSIZE - 2 * ALIGN - 300 * 1048576 / SECSIZE ))
+		ZFS_SECTORS=$(( USABLE - SWAP_SECTORS ))
+	fi
+	# Automatic swap gives way when space is tight: the size the installers
+	# offer starts at MIN_GB, and FreeBSD itself must keep that much (a
+	# chosen SWAP_SIZE is kept, and refused below when it does not fit).
+	_min=$(( MIN_GB * 1073741824 / SECSIZE ))
+	if [ "$_swap_auto" = yes ] && [ "$ZFS_SECTORS" -lt "$_min" ]; then
+		SWAP_SECTORS=$(( (USABLE - _min) / ALIGN * ALIGN ))
+		[ "$SWAP_SECTORS" -gt 0 ] || SWAP_SECTORS=0
 		ZFS_SECTORS=$(( USABLE - SWAP_SECTORS ))
 	fi
 	ZFS_GB=$(( ZFS_SECTORS * SECSIZE / 1073741824 ))
@@ -1150,9 +1161,12 @@ boot_integrate() {
 # FreeBSD's own menu: an entry to start the other system (key L).
 chain_integrate() {
 	if [ -n "${CHAIN_PATH:-}" ]; then
+		# (the name comes from a firmware entry: no quote or backslash may
+		# end the loader.conf string early)
+		_cn=$(printf '%s' "${CHAIN_NAME:-other system}" | tr -d '"\\' | tr '\t\n' '  ')
 		cat >> "$MNT/boot/loader.conf" <<EOF
 fbs_chain_path="$CHAIN_PATH"
-fbs_chain_name="${CHAIN_NAME:-other system}"
+fbs_chain_name="$_cn"
 EOF
 		install -m 444 "$REPO_DIR/files/local.lua" "$MNT/boot/lua/local.lua"
 	fi

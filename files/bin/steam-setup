@@ -33,7 +33,8 @@ Terminal=false
 Categories=Game;
 DESK
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *)
-	printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$HOME/.profile" ;;
+	grep -qsF 'export PATH="$HOME/.local/bin:$PATH"' "$HOME/.profile" ||
+		printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$HOME/.profile" ;;
 esac
 echo "==> done. Start Steam from the application menu (or: ~/.local/bin/steam)."
 echo "    In Steam: Settings > Compatibility > enable Steam Play for all other titles."

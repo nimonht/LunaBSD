@@ -17,7 +17,7 @@ jobs:
             setup.sh install.sh bootstrap.sh lib/*.sh stages/*.sh files/bin/* \
             caelestia/build.sh files/rc.d/* tests/*.sh tests/vm/*.sh files/shell/fbs-terminal-greeting \
             iso/*.sh iso/ramdisk/init.sh iso/ramdisk/rc iso/live/luna_live iso/live/luna-installer-session \
-            iso/live/rc.local installer/luna-wifi
+            iso/live/rc.local iso/live/luna-plasma installer/luna-wifi
           shellcheck -s bash -S warning files/shell/bash.bashrc
 
       - name: fish and zsh syntax
